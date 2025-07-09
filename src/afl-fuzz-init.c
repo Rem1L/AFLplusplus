@@ -1428,6 +1428,7 @@ void perform_dry_run(afl_state_t *afl) {
   /* Now we remove all entries from the queue that have a duplicate trace map */
 
   u32 duplicates = 0, i;
+  u8 keep_same_coverage = getenv("AFL_KEEP_SAME_COVERAGE") != NULL;
 
   for (idx = 0; idx < afl->queued_items - 1; idx++) {
 
@@ -1439,6 +1440,7 @@ void perform_dry_run(afl_state_t *afl) {
       struct queue_entry *p = afl->queue_buf[i];
       if (p->disabled || p->cal_failed || !p->exec_cksum) { continue; }
       if (p->exec_cksum != q->exec_cksum) continue;
+      if (keep_same_coverage) continue;
 
       duplicates = 1;
 
