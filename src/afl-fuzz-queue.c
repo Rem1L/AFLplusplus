@@ -26,7 +26,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <math.h>
-#include "t1ha.h"
+#include "xxhash.h"
 
 #ifdef _STANDALONE_MODULE
 void minimize_bits(afl_state_t *afl, u8 *dst, u8 *src) {
@@ -693,7 +693,7 @@ void add_to_queue(afl_state_t *afl, u8 *fname, u32 len, u8 passed_det) {
   ck_read(fd, file_content, len, fname);
   close(fd);
 
-  u64 current_payload_hash = t1ha2_atonce(file_content, len, 0);
+  u64 current_payload_hash = XXH64(file_content, len, 0);
   RilPayloadHashEntry *entry;
   HASH_FIND_INT(afl->ril_payload_hashes, &current_payload_hash, entry);
 
@@ -1243,7 +1243,7 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
   //
   if (q->len > 0) {
     u8 *input_buf = queue_testcase_get(afl, q);
-    u64 payload_hash = t1ha2_atonce(input_buf, q->len, 0);
+    u64 payload_hash = XXH64(input_buf, q->len, 0);
 
     RilPayloadHashEntry *entry;
     HASH_FIND_INT(afl->crashed_payload_hashes, &payload_hash, entry);

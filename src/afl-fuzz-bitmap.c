@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "asanfuzz.h"
-#include "t1ha.h"
+#include "xxhash.h"
 
 u16 count_class_lookup16[65536];
 
@@ -971,7 +971,7 @@ may_save_fault:
       //
       //
       //
-      u64 payload_content_hash = t1ha2_atonce(mem, len, 0);
+      u64 payload_content_hash = XXH64(mem, len, 0);
       RilPayloadHashEntry *entry;
       HASH_FIND_INT(afl->crashed_payload_hashes, &payload_content_hash, entry);
       if (entry != NULL) {
