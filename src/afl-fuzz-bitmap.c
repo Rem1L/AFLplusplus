@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "asanfuzz.h"
+#include "t1ha.h"
 
 u16 count_class_lookup16[65536];
 
@@ -967,7 +968,32 @@ may_save_fault:
          except for slightly different limits and no need to re-run test
          cases. */
 
+      //
+      //
+      //
+      u64 payload_content_hash = t1ha2_atonce(mem, len, 0);
+      RilPayloadHashEntry *entry;
+      HASH_FIND_INT(afl->crashed_payload_hashes, &payload_content_hash, entry);
+      if (entry != NULL) {
+        if (afl->debug) {
+          ACTF("Skipping crash save: duplicate payload content (hash 0x%016llx).", payload_content_hash);
+        }
+        return 0;
+      }
+
+      entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
+      entry->hash_value = payload_content_hash;
+      HASH_ADD_INT(afl->crashed_payload_hashes, hash_value, entry);
+
+      //
+      //
+      //
+
+
+
       ++afl->total_crashes;
+
+
 
       if (afl->saved_crashes >= KEEP_UNIQUE_CRASH) { return keeping; }
 

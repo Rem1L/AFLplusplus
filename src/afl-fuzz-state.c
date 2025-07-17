@@ -146,6 +146,10 @@ void afl_state_init(afl_state_t *afl, uint32_t map_size) {
 
   list_append(&afl_states, afl);
 
+  afl->ril_payload_hashes = NULL;     // init the hash table
+  afl->crashed_payload_hashes = NULL; // init the hash table
+  afl->queued_duplicates = 0;         // init the counter
+
 }
 
 void afl_resize_map_buffers(afl_state_t *afl, u32 old_size, u32 new_size) {
@@ -894,6 +898,19 @@ void afl_state_deinit(afl_state_t *afl) {
   ck_free(afl->afl_env.afl_forksrv_supl_gids);
 
   list_remove(&afl_states, afl);
+
+  // clean the hash table
+  RilPayloadHashEntry *current_entry, *tmp;
+  HASH_ITER(hh, afl->ril_payload_hashes, current_entry, tmp) {
+      HASH_DEL(afl->ril_payload_hashes, current_entry);
+      ck_free(current_entry);
+  }
+
+  // clean the hash table
+  HASH_ITER(hh, afl->crashed_payload_hashes, current_entry, tmp) {
+      HASH_DEL(afl->crashed_payload_hashes, current_entry);
+      ck_free(current_entry);
+  }
 
 }
 

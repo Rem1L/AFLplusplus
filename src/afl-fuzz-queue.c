@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <math.h>
+#include "t1ha.h"
 
 #ifdef _STANDALONE_MODULE
 void minimize_bits(afl_state_t *afl, u8 *dst, u8 *src) {
@@ -678,88 +679,129 @@ static u8 check_if_text(afl_state_t *afl, struct queue_entry *q) {
 /* Append new test case to the queue. */
 
 void add_to_queue(afl_state_t *afl, u8 *fname, u32 len, u8 passed_det) {
+  //
+  //
+  //
+  u8 *file_content = NULL;
+  int fd;
 
-  struct queue_entry *q =
-      (struct queue_entry *)ck_alloc(sizeof(struct queue_entry));
-
-  q->fname = fname;
-  q->len = len;
-  q->depth = afl->cur_depth + 1;
-  q->passed_det = passed_det;
-  q->trace_mini = NULL;
-  q->testcase_buf = NULL;
-  q->mother = afl->queue_cur;
-  q->weight = 1.0;
-  q->perf_score = 100;
-
-#ifdef INTROSPECTION
-  q->bitsmap_size = afl->bitsmap_size;
-#endif
-
-  if (q->depth > afl->max_depth) { afl->max_depth = q->depth; }
-
-  if (afl->queue_top) {
-
-    afl->queue_top = q;
-
-  } else {
-
-    afl->queue = afl->queue_top = q;
-
+  fd = open((char *)fname, O_RDONLY);
+  if (unlikely(fd < 0)) {
+      PFATAL("Unable to open '%s' for deduplication", (char *)fname);
   }
+  file_content = (u8 *)ck_alloc(len);
+  ck_read(fd, file_content, len, fname);
+  close(fd);
 
-  if (likely(q->len > 4)) { ++afl->ready_for_splicing_count; }
+  u64 current_payload_hash = t1ha2_atonce(file_content, len, 0);
+  RilPayloadHashEntry *entry;
+  HASH_FIND_INT(afl->ril_payload_hashes, &current_payload_hash, entry);
 
-  ++afl->queued_items;
-  ++afl->active_items;
-  ++afl->pending_not_fuzzed;
+  if (entry != NULL) {
+    afl->queued_duplicates++;
+    ck_free(file_content);
+    ck_free(fname);
+    return;
+  } else {
+    entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
+    entry->hash_value = current_payload_hash;
+    HASH_ADD_INT(afl->ril_payload_hashes, hash_value, entry);
 
-  afl->cycles_wo_finds = 0;
+  
 
-  struct queue_entry **queue_buf = (struct queue_entry **)afl_realloc(
-      AFL_BUF_PARAM(queue), afl->queued_items * sizeof(struct queue_entry *));
-  if (unlikely(!queue_buf)) { PFATAL("alloc"); }
-  queue_buf[afl->queued_items - 1] = q;
-  q->id = afl->queued_items - 1;
+  //
+  //
+  //
 
-  u64 cur_time = get_cur_time();
+    struct queue_entry *q =
+        (struct queue_entry *)ck_alloc(sizeof(struct queue_entry));
 
-  if (likely(afl->start_time) &&
-      unlikely(afl->longest_find_time < cur_time - afl->last_find_time)) {
+    q->fname = fname;
+    q->len = len;
+    q->depth = afl->cur_depth + 1;
+    q->passed_det = passed_det;
+    q->trace_mini = NULL;
+    q->testcase_buf = NULL;
+    q->mother = afl->queue_cur;
+    q->weight = 1.0;
+    q->perf_score = 100;
 
-    if (unlikely(!afl->last_find_time)) {
+  #ifdef INTROSPECTION
+    q->bitsmap_size = afl->bitsmap_size;
+  #endif
 
-      afl->longest_find_time = cur_time - afl->start_time;
+    if (q->depth > afl->max_depth) { afl->max_depth = q->depth; }
+
+    if (afl->queue_top) {
+
+      afl->queue_top = q;
 
     } else {
 
-      afl->longest_find_time = cur_time - afl->last_find_time;
+      afl->queue = afl->queue_top = q;
 
     }
 
-  }
+    if (likely(q->len > 4)) { ++afl->ready_for_splicing_count; }
 
-  afl->last_find_time = cur_time;
+    ++afl->queued_items;
+    ++afl->active_items;
+    ++afl->pending_not_fuzzed;
 
-  if (afl->custom_mutators_count) {
+    afl->cycles_wo_finds = 0;
 
-    /* At the initialization stage, queue_cur is NULL */
-    if (afl->queue_cur && !afl->syncing_party) {
+    struct queue_entry **queue_buf = (struct queue_entry **)afl_realloc(
+        AFL_BUF_PARAM(queue), afl->queued_items * sizeof(struct queue_entry *));
+    if (unlikely(!queue_buf)) { PFATAL("alloc"); }
+    queue_buf[afl->queued_items - 1] = q;
+    q->id = afl->queued_items - 1;
 
-      run_afl_custom_queue_new_entry(afl, q, fname, afl->queue_cur->fname);
+    u64 cur_time = get_cur_time();
+
+    if (likely(afl->start_time) &&
+        unlikely(afl->longest_find_time < cur_time - afl->last_find_time)) {
+
+      if (unlikely(!afl->last_find_time)) {
+
+        afl->longest_find_time = cur_time - afl->start_time;
+
+      } else {
+
+        afl->longest_find_time = cur_time - afl->last_find_time;
+
+      }
 
     }
 
+    afl->last_find_time = cur_time;
+
+    if (afl->custom_mutators_count) {
+
+      /* At the initialization stage, queue_cur is NULL */
+      if (afl->queue_cur && !afl->syncing_party) {
+
+        run_afl_custom_queue_new_entry(afl, q, fname, afl->queue_cur->fname);
+
+      }
+
+    }
+
+    /* only redqueen currently uses is_ascii */
+    if (unlikely(afl->shm.cmplog_mode && !q->is_ascii)) {
+
+      q->is_ascii = check_if_text(afl, q);
+
+    }
+
+    q->skipdet_e = (struct skipdet_entry *)ck_alloc(sizeof(struct skipdet_entry));
+    //
+    //
+    //
+    ck_free(file_content);
+    //
+    //
+    //
   }
-
-  /* only redqueen currently uses is_ascii */
-  if (unlikely(afl->shm.cmplog_mode && !q->is_ascii)) {
-
-    q->is_ascii = check_if_text(afl, q);
-
-  }
-
-  q->skipdet_e = (struct skipdet_entry *)ck_alloc(sizeof(struct skipdet_entry));
 
 }
 
@@ -1196,6 +1238,25 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
   u32 avg_bitmap_size = afl->total_bitmap_size / bitmap_entries;
   u32 perf_score = 100;
 
+  //
+  //
+  //
+  if (q->len > 0) {
+    u8 *input_buf = queue_testcase_get(afl, q);
+    u64 payload_hash = t1ha2_atonce(input_buf, q->len, 0);
+
+    RilPayloadHashEntry *entry;
+    HASH_FIND_INT(afl->crashed_payload_hashes, &payload_hash, entry);
+
+    if (entry != NULL) {
+        perf_score = perf_score / 100;
+        if (perf_score < 1) perf_score = 1;
+    }
+  }
+  //
+  //
+  //
+
   /* Adjust score based on execution speed of this path, compared to the
      global average. Multiplier ranges from 0.1x to 3x. Fast inputs are
      less expensive to fuzz, so we're giving them more air time. */
@@ -1206,68 +1267,68 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
   // Longer execution time means longer work on the input, the deeper in
   // coverage, the better the fuzzing, right? -mh
 
-  if (likely(afl->schedule < RARE) && likely(!afl->fixed_seed)) {
+  // if (likely(afl->schedule < RARE) && likely(!afl->fixed_seed)) {
 
-    if (q->exec_us * 0.1 > avg_exec_us) {
+  //   if (q->exec_us * 0.1 > avg_exec_us) {
 
-      perf_score = 10;
+  //     perf_score = 10;
 
-    } else if (q->exec_us * 0.25 > avg_exec_us) {
+  //   } else if (q->exec_us * 0.25 > avg_exec_us) {
 
-      perf_score = 25;
+  //     perf_score = 25;
 
-    } else if (q->exec_us * 0.5 > avg_exec_us) {
+  //   } else if (q->exec_us * 0.5 > avg_exec_us) {
 
-      perf_score = 50;
+  //     perf_score = 50;
 
-    } else if (q->exec_us * 0.75 > avg_exec_us) {
+  //   } else if (q->exec_us * 0.75 > avg_exec_us) {
 
-      perf_score = 75;
+  //     perf_score = 75;
 
-    } else if (q->exec_us * 4 < avg_exec_us) {
+  //   } else if (q->exec_us * 4 < avg_exec_us) {
 
-      perf_score = 300;
+  //     perf_score = 300;
 
-    } else if (q->exec_us * 3 < avg_exec_us) {
+  //   } else if (q->exec_us * 3 < avg_exec_us) {
 
-      perf_score = 200;
+  //     perf_score = 200;
 
-    } else if (q->exec_us * 2 < avg_exec_us) {
+  //   } else if (q->exec_us * 2 < avg_exec_us) {
 
-      perf_score = 150;
+  //     perf_score = 150;
 
-    }
+  //   }
 
-  }
+  // }
 
   /* Adjust score based on bitmap size. The working theory is that better
      coverage translates to better targets. Multiplier from 0.25x to 3x. */
 
-  if (q->bitmap_size * 0.3 > avg_bitmap_size) {
+  // if (q->bitmap_size * 0.3 > avg_bitmap_size) {
 
-    perf_score *= 3;
+  //   perf_score *= 3;
 
-  } else if (q->bitmap_size * 0.5 > avg_bitmap_size) {
+  // } else if (q->bitmap_size * 0.5 > avg_bitmap_size) {
 
-    perf_score *= 2;
+  //   perf_score *= 2;
 
-  } else if (q->bitmap_size * 0.75 > avg_bitmap_size) {
+  // } else if (q->bitmap_size * 0.75 > avg_bitmap_size) {
 
-    perf_score *= 1.5;
+  //   perf_score *= 1.5;
 
-  } else if (q->bitmap_size * 3 < avg_bitmap_size) {
+  // } else if (q->bitmap_size * 3 < avg_bitmap_size) {
 
-    perf_score *= 0.25;
+  //   perf_score *= 0.25;
 
-  } else if (q->bitmap_size * 2 < avg_bitmap_size) {
+  // } else if (q->bitmap_size * 2 < avg_bitmap_size) {
 
-    perf_score *= 0.5;
+  //   perf_score *= 0.5;
 
-  } else if (q->bitmap_size * 1.5 < avg_bitmap_size) {
+  // } else if (q->bitmap_size * 1.5 < avg_bitmap_size) {
 
-    perf_score *= 0.75;
+  //   perf_score *= 0.75;
 
-  }
+  // }
 
   /* Adjust score based on handicap. Handicap is proportional to how late
      in the game we learned about this path. Latecomers are allowed to run

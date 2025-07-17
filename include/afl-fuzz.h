@@ -77,6 +77,8 @@
 #include <sys/types.h>
 #include "asanfuzz.h"
 
+#include "uthash.h"
+
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
     defined(__NetBSD__) || defined(__DragonFly__)
   #include <sys/sysctl.h>
@@ -498,6 +500,12 @@ struct foreign_sync {
 
 };
 
+// define the struct for RIL payload hash
+typedef struct {
+  u64 hash_value;        // RIL payload hash value
+  UT_hash_handle hh;     // make the struct can be used by uthash
+} RilPayloadHashEntry;
+
 typedef struct afl_state {
 
   /* Position of this state in the global states list */
@@ -886,6 +894,13 @@ typedef struct afl_state {
   FILE *introspection_file;
   u32   bitsmap_size;
 #endif
+
+  RilPayloadHashEntry *ril_payload_hashes;
+
+  RilPayloadHashEntry *crashed_payload_hashes;
+
+  u64 queued_duplicates;
+
 
 } afl_state_t;
 
