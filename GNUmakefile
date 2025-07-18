@@ -41,7 +41,7 @@ ARCH = $(shell uname -m)
 
 $(info [*] Compiling AFL++ for OS $(SYS) on ARCH $(ARCH))
 
-override CFLAGS += -lxxhash
+override LDFLAGS += -lxxhash
 
 ifdef NO_UTF
   override CFLAGS_OPT += -DFANCY_BOXES_NO_UTF
