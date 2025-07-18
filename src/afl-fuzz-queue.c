@@ -1262,8 +1262,8 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
   }
 
   ////////////////////////
-  if (q->crashing_children_count > 5) {
-    perf_score = perf_score / 10;
+  if (q->crashing_children_count > 0) {
+    perf_score = perf_score / (q->crashing_children_count + 1);
     if (perf_score < 1) perf_score = 1;
     q->crashing_children_count = 0;
   }
