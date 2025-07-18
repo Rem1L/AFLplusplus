@@ -207,7 +207,13 @@ struct skipdet_global {
 };
 
 struct queue_entry {
-
+  //
+  //
+  //
+  u32 crashing_children_count;
+  //
+  //
+  //
   u8 *fname;                            /* File name for the test case      */
   u32 len;                              /* Input length                     */
   u32 id;                               /* entry number in queue_buf        */

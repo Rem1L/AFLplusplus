@@ -702,10 +702,11 @@ void add_to_queue(afl_state_t *afl, u8 *fname, u32 len, u8 passed_det) {
     ck_free(file_content);
     ck_free(fname);
     return;
-  } else {
-    entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
-    entry->hash_value = current_payload_hash;
-    HASH_ADD_INT(afl->ril_payload_hashes, hash_value, entry);
+  }
+
+  entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
+  entry->hash_value = current_payload_hash;
+  HASH_ADD_INT(afl->ril_payload_hashes, hash_value, entry);
 
   
 
@@ -713,95 +714,101 @@ void add_to_queue(afl_state_t *afl, u8 *fname, u32 len, u8 passed_det) {
   //
   //
 
-    struct queue_entry *q =
-        (struct queue_entry *)ck_alloc(sizeof(struct queue_entry));
+  struct queue_entry *q =
+      (struct queue_entry *)ck_alloc(sizeof(struct queue_entry));
 
-    q->fname = fname;
-    q->len = len;
-    q->depth = afl->cur_depth + 1;
-    q->passed_det = passed_det;
-    q->trace_mini = NULL;
-    q->testcase_buf = NULL;
-    q->mother = afl->queue_cur;
-    q->weight = 1.0;
-    q->perf_score = 100;
+  q->fname = fname;
+  q->len = len;
+  q->depth = afl->cur_depth + 1;
+  q->passed_det = passed_det;
+  q->trace_mini = NULL;
+  q->testcase_buf = NULL;
+  q->mother = afl->queue_cur;
+  q->weight = 1.0;
+  q->perf_score = 100;
+  //
+  //
+  //
+  q->crashing_children_count = 0;
+  //
+  //
+  //
 
-  #ifdef INTROSPECTION
-    q->bitsmap_size = afl->bitsmap_size;
-  #endif
+#ifdef INTROSPECTION
+  q->bitsmap_size = afl->bitsmap_size;
+#endif
 
-    if (q->depth > afl->max_depth) { afl->max_depth = q->depth; }
+  if (q->depth > afl->max_depth) { afl->max_depth = q->depth; }
 
-    if (afl->queue_top) {
+  if (afl->queue_top) {
 
-      afl->queue_top = q;
+    afl->queue_top = q;
+
+  } else {
+
+    afl->queue = afl->queue_top = q;
+
+  }
+
+  if (likely(q->len > 4)) { ++afl->ready_for_splicing_count; }
+
+  ++afl->queued_items;
+  ++afl->active_items;
+  ++afl->pending_not_fuzzed;
+
+  afl->cycles_wo_finds = 0;
+
+  struct queue_entry **queue_buf = (struct queue_entry **)afl_realloc(
+      AFL_BUF_PARAM(queue), afl->queued_items * sizeof(struct queue_entry *));
+  if (unlikely(!queue_buf)) { PFATAL("alloc"); }
+  queue_buf[afl->queued_items - 1] = q;
+  q->id = afl->queued_items - 1;
+
+  u64 cur_time = get_cur_time();
+
+  if (likely(afl->start_time) &&
+      unlikely(afl->longest_find_time < cur_time - afl->last_find_time)) {
+
+    if (unlikely(!afl->last_find_time)) {
+
+      afl->longest_find_time = cur_time - afl->start_time;
 
     } else {
 
-      afl->queue = afl->queue_top = q;
+      afl->longest_find_time = cur_time - afl->last_find_time;
 
     }
 
-    if (likely(q->len > 4)) { ++afl->ready_for_splicing_count; }
-
-    ++afl->queued_items;
-    ++afl->active_items;
-    ++afl->pending_not_fuzzed;
-
-    afl->cycles_wo_finds = 0;
-
-    struct queue_entry **queue_buf = (struct queue_entry **)afl_realloc(
-        AFL_BUF_PARAM(queue), afl->queued_items * sizeof(struct queue_entry *));
-    if (unlikely(!queue_buf)) { PFATAL("alloc"); }
-    queue_buf[afl->queued_items - 1] = q;
-    q->id = afl->queued_items - 1;
-
-    u64 cur_time = get_cur_time();
-
-    if (likely(afl->start_time) &&
-        unlikely(afl->longest_find_time < cur_time - afl->last_find_time)) {
-
-      if (unlikely(!afl->last_find_time)) {
-
-        afl->longest_find_time = cur_time - afl->start_time;
-
-      } else {
-
-        afl->longest_find_time = cur_time - afl->last_find_time;
-
-      }
-
-    }
-
-    afl->last_find_time = cur_time;
-
-    if (afl->custom_mutators_count) {
-
-      /* At the initialization stage, queue_cur is NULL */
-      if (afl->queue_cur && !afl->syncing_party) {
-
-        run_afl_custom_queue_new_entry(afl, q, fname, afl->queue_cur->fname);
-
-      }
-
-    }
-
-    /* only redqueen currently uses is_ascii */
-    if (unlikely(afl->shm.cmplog_mode && !q->is_ascii)) {
-
-      q->is_ascii = check_if_text(afl, q);
-
-    }
-
-    q->skipdet_e = (struct skipdet_entry *)ck_alloc(sizeof(struct skipdet_entry));
-    //
-    //
-    //
-    ck_free(file_content);
-    //
-    //
-    //
   }
+
+  afl->last_find_time = cur_time;
+
+  if (afl->custom_mutators_count) {
+
+    /* At the initialization stage, queue_cur is NULL */
+    if (afl->queue_cur && !afl->syncing_party) {
+
+      run_afl_custom_queue_new_entry(afl, q, fname, afl->queue_cur->fname);
+
+    }
+
+  }
+
+  /* only redqueen currently uses is_ascii */
+  if (unlikely(afl->shm.cmplog_mode && !q->is_ascii)) {
+
+    q->is_ascii = check_if_text(afl, q);
+
+  }
+
+  q->skipdet_e = (struct skipdet_entry *)ck_alloc(sizeof(struct skipdet_entry));
+  //
+  //
+  //
+  ck_free(file_content);
+  //
+  //
+  //
 
 }
 
@@ -1253,9 +1260,13 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
         if (perf_score < 1) perf_score = 1;
     }
   }
-  //
-  //
-  //
+
+  ////////////////////////
+  if (q->crashing_children_count > 5) {
+    perf_score = perf_score / 10;
+    if (perf_score < 1) perf_score = 1;
+    q->crashing_children_count = 0;
+  }
 
   /* Adjust score based on execution speed of this path, compared to the
      global average. Multiplier ranges from 0.1x to 3x. Fast inputs are

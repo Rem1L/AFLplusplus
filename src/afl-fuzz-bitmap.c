@@ -968,9 +968,7 @@ may_save_fault:
          except for slightly different limits and no need to re-run test
          cases. */
 
-      //
-      //
-      //
+      ////////////////////////
       u64 payload_content_hash = XXH64(mem, len, 0);
       RilPayloadHashEntry *entry;
       HASH_FIND_INT(afl->crashed_payload_hashes, &payload_content_hash, entry);
@@ -984,10 +982,10 @@ may_save_fault:
       entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
       entry->hash_value = payload_content_hash;
       HASH_ADD_INT(afl->crashed_payload_hashes, hash_value, entry);
-
-      //
-      //
-      //
+      if (afl->queue_cur && afl->queue_cur->mother) {
+        afl->queue_cur->mother->crashing_children_count++;
+      }
+      ////////////////////////
 
 
 
