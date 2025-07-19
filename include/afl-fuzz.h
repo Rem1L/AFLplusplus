@@ -207,13 +207,7 @@ struct skipdet_global {
 };
 
 struct queue_entry {
-  //
-  //
-  //
-  u32 crashing_children_count;
-  //
-  //
-  //
+  
   u8 *fname;                            /* File name for the test case      */
   u32 len;                              /* Input length                     */
   u32 id;                               /* entry number in queue_buf        */
@@ -221,6 +215,13 @@ struct queue_entry {
   u8 colorized,                         /* Do not run redqueen stage again  */
       cal_failed;                       /* Calibration failed?              */
 
+  //
+  //
+  //
+  u32 crashing_children_count;
+  //
+  //
+  //
   bool trim_done,                       /* Trimmed?                         */
       was_fuzzed,                       /* historical, but needed for MOpt  */
       passed_det,                       /* Deterministic stages passed?     */
