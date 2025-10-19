@@ -1250,25 +1250,25 @@ u32 calculate_score(afl_state_t *afl, struct queue_entry *q) {
   //
   //
   //
-  if (q->len > 0) {
-    u8 *input_buf = queue_testcase_get(afl, q);
-    u64 payload_hash = XXH64(input_buf, q->len, 0);
+  // if (q->len > 0) {
+  //   u8 *input_buf = queue_testcase_get(afl, q);
+  //   u64 payload_hash = XXH64(input_buf, q->len, 0);
 
-    RilPayloadHashEntry *entry;
-    HASH_FIND_INT(afl->crashed_payload_hashes, &payload_hash, entry);
+  //   RilPayloadHashEntry *entry;
+  //   HASH_FIND_INT(afl->crashed_payload_hashes, &payload_hash, entry);
 
-    if (entry != NULL) {
-        perf_score = perf_score / 100;
-        if (perf_score < 1) perf_score = 1;
-    }
-  }
+  //   if (entry != NULL) {
+  //       perf_score = perf_score / 100;
+  //       if (perf_score < 1) perf_score = 1;
+  //   }
+  // }
 
   ////////////////////////
-  if (q->crashing_children_count > 0) {
-    perf_score = perf_score / (q->crashing_children_count + 1);
-    if (perf_score < 1) perf_score = 1;
-    q->crashing_children_count = 0;
-  }
+  // if (q->crashing_children_count > 0) {
+  //   perf_score = perf_score / (q->crashing_children_count + 1);
+  //   if (perf_score < 1) perf_score = 1;
+  //   q->crashing_children_count = 0;
+  // }
 
   /* Adjust score based on execution speed of this path, compared to the
      global average. Multiplier ranges from 0.1x to 3x. Fast inputs are
