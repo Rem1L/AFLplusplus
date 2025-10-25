@@ -982,8 +982,8 @@ may_save_fault:
       entry = (RilPayloadHashEntry *)ck_alloc(sizeof(RilPayloadHashEntry));
       entry->hash_value = payload_content_hash;
       HASH_ADD_INT(afl->crashed_payload_hashes, hash_value, entry);
-      if (afl->queue_cur) {
-        afl->queue_cur->crashing_children_count++;
+      afl->queue_cur->crashing_children_count++;
+      if (afl->queue_cur->crashing_children_count > 2) {
         afl->queue_cur->disabled = 1;
         afl->queue_cur->perf_score = 0;
         afl->queue_cur->weight = 0;
